@@ -3,7 +3,7 @@ module PanelLag
 using Tables, DataFrames
 import Base: diff
 
-export PanelSet, LaggedField, lag
+export PanelSet, LaggedField, lag, diff, lag!, diff!
 
 struct PanelSet{T, pid, tid, TF}
     df::T                       # Parent Table
@@ -38,15 +38,15 @@ function PanelSet(df::AbstractDataFrame, pid, tid; Δ = 1, safe = false)
     # Calculate a unique panel id
     nm = pid_name(df)
     gd = groupby(df, vcat(tuplefy(pid)...))
-    df[nm] = groupindices(gd)
+    df[!, nm] = groupindices(gd)
 
     # Check whether keys are unique
     if !safe
-        Ns = by(df, vcat(nm, tid), _N = tid => length)
-        @assert(all(n -> n == 1, Ns[:_N]), "The keys must be unique")
+        Ns = combine(gd, N1 = tid => length, N2 = tid => length ∘ unique)
+        @assert(Ns[!, :N1] == Ns[!, :N2], "The keys must be unique")
     end
 
-    sp      = sortperm(Keys.(df[nm], df[tid]))
+    sp      = sortperm(Keys.(df[!, nm], df[!, tid]))
     sp_inv  = invperm(sp)
 
     return PanelSet(columntable(df), nm, Symbol(tid), sp, sp_inv, Δ)
@@ -183,34 +183,34 @@ function diff(df, pid, tid, field::Symbol, l = 1; Δ = 1)
 end
 
 function diff(ps::PanelSet, field::Symbol, l = 1)
-    return getfield(ps.df, field) - lag(ps, l)
+    return getfield(ps.df, field) - lag(ps, field, l)
 end
 
 
 # Inplace Operation
-function lag!(df, pid, tid, fields, l = 1; Δ = 1)
+function lag!(df::AbstractDataFrame, pid, tid, fields, l = 1; Δ = 1)
     ps = PanelSet(df, pid, tid; Δ = Δ)
     for field in vcat(fields)
-        df[lag(field, l)] = lag(ps, field, l)
+        df[!, lag(field, l)] = lag(ps, field, l)
     end
 end
 
-function lag!(df, ps::PanelSet, fields, l = 1)
+function lag!(df::AbstractDataFrame, ps::PanelSet, fields, l = 1)
     for field in vcat(fields)
-        df[lag(field, l)] = lag(ps, field, l)
+        df[!, lag(field, l)] = lag(ps, field, l)
     end
 end
 
-function diff!(df, pid, tid, fields, l = 1; Δ = 1)
+function diff!(df::AbstractDataFrame, pid, tid, fields, l = 1; Δ = 1)
     ps = PanelSet(df, pid, tid; Δ = Δ)
     for field in vcat(fields)
-        df[diff(field, l)] = lag(ps, field, l)
+        df[!, diff(field, l)] = lag(ps, field, l)
     end
 end
 
-function diff!(df, ps::PanelSet, fields, l = 1)
+function diff!(df::AbstractDataFrame, ps::PanelSet, fields, l = 1)
     for field in vcat(fields)
-        df[diff(field, l)] = diff(ps, field, l)
+        df[!, diff(field, l)] = diff(ps, field, l)
     end
 end
 
