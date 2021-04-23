@@ -42,7 +42,7 @@ function PanelSet(df::AbstractDataFrame, pid, tid; Δ = 1, safe = false)
 
     # Check whether keys are unique
     if !safe
-        Ns = combine(gd, N1 = tid => length, N2 = tid => length ∘ unique)
+        Ns = combine(gd, tid => length => :N1, tid => length ∘ unique => :N2)
         @assert(Ns[!, :N1] == Ns[!, :N2], "The keys must be unique")
     end
 
